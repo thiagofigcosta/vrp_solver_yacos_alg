@@ -1,6 +1,7 @@
 import json
 import math
 import random as rd
+import traceback
 import xml.etree.ElementTree as ElementTree
 from enum import Enum
 from itertools import combinations
@@ -17,17 +18,19 @@ INSTANCES = [
     'res/golden-et-al-1998-set-1/Golden_20.xml',
 ]
 
-MAX_ITER = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+MAX_ITER = [1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 REPORT_PATH = 'report_#.json'
+RUN_MILS_RVND = True
+RUN_YACOS = True
+
+
+class Struct(object):
+    pass
 
 
 def remove_if_exists(arr, value):
     if value in arr:
         arr.remove(value)
-
-
-class Struct(object):
-    pass
 
 
 def build_edge_and_adjacent_dicts(edges):
@@ -80,12 +83,18 @@ def load_vrp_file(filepath):
     if vehicle_profiles > 1:
         raise NotImplementedError('Currently we cannot handle heterogeneous')
     cities = []
+    demands = {}
 
-    for node, request in zip(root.iter('node'), root.iter('request')):
+    for request in root.iter('request'):
+        city = int(request.get('node'))
+        demand = float(request.find('quantity').text)
+        demands[city] = demand
+
+    for node in root.iter('node'):
         city = int(node.get('id'))
         x = float(node.find('cx').text)
         y = float(node.find('cy').text)
-        demand = float(request.find('quantity').text)
+        demand = demands.get(city, 0)
         cities.append((city, demand, (x, y)))
 
     edges = []
@@ -222,16 +231,20 @@ def is_valid_solution(vrp_instance, solution):
     fixed_demand = vrp_instance.cities[vrp_instance.fleet.departure_city].demand
     if vrp_instance.fleet.departure_city != vrp_instance.fleet.arrival_city:
         fixed_demand += vrp_instance.cities[vrp_instance.fleet.arrival_city].demand
+    cities_seen = set()
     for route in solution:
         r_demand = fixed_demand
         for city in route:
+            cities_seen.add(city)
             r_demand += vrp_instance.cities[city].demand
         if r_demand > vrp_instance.fleet.capacity:
             return False
         if len(route) != len(set(route)):
             print('ERROR, duplicated ciies')
             return False
-    return True
+    cities_seen.add(vrp_instance.fleet.departure_city)
+    cities_seen.add(vrp_instance.fleet.arrival_city)
+    return cities_seen == vrp_instance.cities.keys()
 
 
 def mils_rvnd_gen_initial_solution(vrp_instance, cur_attempt=0, max_attempts=3):
@@ -1017,6 +1030,7 @@ def get_eulerian_path(graph, starting=None):
             current_path_idx += 1
             graph_deep_deep_copy[src_node].remove(dst_node)
             graph_deep_deep_copy[dst_node].remove(src_node)
+    euler_path.reverse()
     return euler_path
 
 
@@ -1048,11 +1062,12 @@ def christofides(vrp_instance, route):
     eulerian_graph = build_graph_from_edges(eulerian_graph_edges)[0]
     eulerian_path = get_eulerian_path(eulerian_graph, vrp_instance.fleet.departure_city)
 
-    seen_nodes = set()
-    hamiltonian_tour = [el for el in eulerian_path if el not in seen_nodes and not seen_nodes.add(el)] + [
-        eulerian_path[0]]
+    seen_nodes = {vrp_instance.fleet.departure_city, vrp_instance.fleet.arrival_city}  # prevent start and end on route
+    # hamiltonian_tour = [el for el in eulerian_path if el not in seen_nodes and not seen_nodes.add(el)] + [
+    #     eulerian_path[0]]
     # cost = compute_cost_ed(hamiltonian_tour, edge_dict)
-    return hamiltonian_tour[1:-1]  # remove starting and ending node
+    route = [el for el in eulerian_path if el not in seen_nodes and not seen_nodes.add(el)]
+    return route
 
 
 def christofides_on_solution(vrp_instance, routes):
@@ -1078,6 +1093,7 @@ def yacos_gen_initial_solution(vrp_instance, cur_attempt=0, max_attempts=3):
                 break
     if not is_valid_solution(vrp_instance, routes):
         return yacos_gen_initial_solution(vrp_instance, cur_attempt=cur_attempt + 1, max_attempts=max_attempts)
+    routes = christofides_on_solution(vrp_instance, routes)
     return routes
 
 
@@ -1134,42 +1150,46 @@ report = {}
 
 for m_iter in MAX_ITER:
     for instance in INSTANCES:
-        try:
-            vrp_instance = load_vrp_file(instance)
-            runtime_s = -perf_counter()
-            cost, sol = mils_rvnd(vrp_instance, m_iter)
-            runtime_s += perf_counter()
-            if instance not in report:
-                report[instance] = {}
-            report[instance]['mils_rvnd'] = {
-                'cost': cost,
-                'fleet_size': len(sol),
-                'runtime_s': runtime_s,
-                'sol': str(sol),
-            }
-            save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
-        except Exception as e:
-            print('ERORRRRRR---')
-            print(e)
-            print('ERORRRRRR---')
+        if RUN_MILS_RVND:
+            try:
+                vrp_instance = load_vrp_file(instance)
+                runtime_s = -perf_counter()
+                cost, sol = mils_rvnd(vrp_instance, m_iter)
+                runtime_s += perf_counter()
+                if instance not in report:
+                    report[instance] = {}
+                report[instance]['mils_rvnd'] = {
+                    'cost': cost,
+                    'fleet_size': len(sol),
+                    'runtime_s': runtime_s,
+                    'sol': str(sol),
+                }
+                save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
+            except Exception as e:
+                print('ERORRRRRR---')
+                print(e)
+                traceback.print_exc()
+                print('ERORRRRRR---')
 
-        try:
-            vrp_instance = load_vrp_file(instance)
-            runtime_s = -perf_counter()
-            cost, sol = yacos(vrp_instance, m_iter)
-            runtime_s += perf_counter()
-            if instance not in report:
-                report[instance] = {}
-            report[instance]['YaCos'] = {
-                'cost': cost,
-                'fleet_size': len(sol),
-                'runtime_s': runtime_s,
-                'sol': str(sol),
-            }
-            save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
-        except Exception as e:
-            print('ERORRRRRR---')
-            print(e)
-            print('ERORRRRRR---')
+        if RUN_YACOS:
+            try:
+                vrp_instance = load_vrp_file(instance)
+                runtime_s = -perf_counter()
+                cost, sol = yacos(vrp_instance, m_iter)
+                runtime_s += perf_counter()
+                if instance not in report:
+                    report[instance] = {}
+                report[instance]['YaCos'] = {
+                    'cost': cost,
+                    'fleet_size': len(sol),
+                    'runtime_s': runtime_s,
+                    'sol': str(sol),
+                }
+                save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
+            except Exception as e:
+                print('ERORRRRRR---')
+                print(e)
+                traceback.print_exc()
+                print('ERORRRRRR---')
 
 print()
