@@ -1098,6 +1098,7 @@ def yacos_gen_initial_solution(vrp_instance, cur_attempt=0, max_attempts=3):
 
 
 def yacos_refine_solution(vrp_instance, solution):
+    #  TODO check cost route by route instead of aggregated sum
     cost = get_solution_cost(vrp_instance, solution)
     chris_sol = christofides_on_solution(vrp_instance, copy_sol(solution))
     chris_cost = get_solution_cost(vrp_instance, chris_sol)
