@@ -18,7 +18,7 @@ INSTANCES = [
 ]
 
 MAX_ITER = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
-REPORT_PATH = 'res/report_#.json'
+REPORT_PATH = 'report_#.json'
 
 
 def remove_if_exists(arr, value):
@@ -1147,7 +1147,7 @@ for m_iter in MAX_ITER:
                 'runtime_s': runtime_s,
                 'sol': str(sol),
             }
-            save_results_report(report, REPORT_PATH.replace('#',f'm_iter-{m_iter}'))
+            save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
         except Exception as e:
             print('ERORRRRRR---')
             print(e)
@@ -1166,7 +1166,7 @@ for m_iter in MAX_ITER:
                 'runtime_s': runtime_s,
                 'sol': str(sol),
             }
-            save_results_report(report,REPORT_PATH.replace('#',f'm_iter-{m_iter}'))
+            save_results_report(report, REPORT_PATH.replace('#', f'm_iter-{m_iter}'))
         except Exception as e:
             print('ERORRRRRR---')
             print(e)
