@@ -18,8 +18,9 @@ INSTANCES = [
     'res/golden-et-al-1998-set-1/Golden_20.xml',
 ]
 
-MAX_ITER = [1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
-REPORT_PATH = 'report_#.json'
+MAX_ITER_MS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+MAX_ITER_ILS = None
+REPORT_PATH = 'reports/report_#.json'
 RUN_MILS_RVND = True
 RUN_YACOS = True
 
@@ -1149,13 +1150,13 @@ def save_results_report(rep, dst_path):
 
 report = {}
 
-for m_iter in MAX_ITER:
+for m_iter in MAX_ITER_MS:
     for instance in INSTANCES:
         if RUN_MILS_RVND:
             try:
                 vrp_instance = load_vrp_file(instance)
                 runtime_s = -perf_counter()
-                cost, sol = mils_rvnd(vrp_instance, m_iter)
+                cost, sol = mils_rvnd(vrp_instance, m_iter, MAX_ITER_ILS)
                 runtime_s += perf_counter()
                 if instance not in report:
                     report[instance] = {}
@@ -1176,7 +1177,7 @@ for m_iter in MAX_ITER:
             try:
                 vrp_instance = load_vrp_file(instance)
                 runtime_s = -perf_counter()
-                cost, sol = yacos(vrp_instance, m_iter)
+                cost, sol = yacos(vrp_instance, m_iter, MAX_ITER_ILS)
                 runtime_s += perf_counter()
                 if instance not in report:
                     report[instance] = {}
